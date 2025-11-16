@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>敌圣独家服务器监控</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            transition: all 0.3s ease;
+        }
+        /* 基础样式（还原截图） */
+        body {
+            --bg-color: #000;
+            --card-bg: #1a1a1a;
+            --text-color: #fff;
+            --title-color: #00aaff;
+            --slogan-color: #ff4444;
+            --num-color: #ffcc00;
+            --border-color: #00aaff;
+            --progress-bg: #444;
+            --cpu-color: #00cc66;
+            --disk-color: #cc00ff;
+            --band-color: #ff9900;
+            --online-color: #00ff00;
+            background: var(--bg-color);
+            color: var(--text-color);
+            font-family: "黑体", "Microsoft YaHei", sans-serif;
+            padding: 10px;
+            line-height: 1.2;
+        }
+        /* 攻击警告弹窗（默认隐藏） */
+        .alert-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            display: none; /* 初始隐藏 */
+        }
+        .alert-box {
+            background: #ff2244;
+            border: 3px solid #ff0000;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 0 20px #ff2244;
+            color: #fff;
+            width: 90%;
+            max-width: 400px;
+        }
+        .alert-title {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 15px;
+            text-shadow: 0 0 8px #fff;
+        }
+        .alert-desc {
+            font-size: 18px;
+            margin: 10px 0;
+        }
+        .info-card {
+            background: rgba(255,255,255,0.2);
+            border: 2px solid #ff6688;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+            font-size: 16px;
+        }
+        .info-item {
+            margin: 8px 0;
+        }
+        .warn-text {
+            font-size: 18px;
+            line-height: 1.5;
+        }
+        .btn-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .btn-defend {
+            background: #00aaff;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 5px;
+            flex: 1;
+            cursor: pointer;
+        }
+        .btn-ignore {
+            background: #ffaaaa;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 5px;
+            flex: 1;
+            cursor: pointer;
+        }
+        /* 服务器监控页面样式 */
+        .title {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--title-color);
+            text-align: center;
+            margin: 10px 0;
+            text-shadow: 0 0 6px var(--title-color);
+        }
+        .slogan {
+            font-size: 16px;
+            color: var(--slogan-color);
+            text-align: center;
+            margin-bottom: 15px;
+            letter-spacing: 1px;
+        }
+        .time {
+            font-size: 16px;
+            color: var(--title-color);
+            margin-bottom: 15px;
+            padding-left: 5px;
+        }
+        .mode-toggle {
+            background: var(--title-color);
+            color: var(--bg-color);
+            border: none;
+            padding: 6px 12px;
+            border-radius: 3px;
+            font-size: 14px;
+            font-weight: bold;
+            margin: 0 auto 15px;
+            cursor: pointer;
+            display: block;
+        }
+        .uptime-title {
+            font-size: 18px;
+            margin: 10px 0;
+            padding-left: 5px;
+        }
+        .uptime {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            padding: 0 5px;
+        }
+        .uptime-box {
+            background: #000;
+            border: 2px solid var(--border-color);
+            border-radius: 4px;
+            padding: 8px 5px;
+            text-align: center;
+            flex: 1;
+        }
+        .uptime-num {
+            color: var(--num-color);
+            font-size: 26px;
+            font-weight: bold;
+        }
+        .uptime-unit {
+            font-size: 14px;
+            color: #aaa;
+        }
+        .server-card {
+            background: #1a1a1a;
+            border: 1px solid #222;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 0 5px;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .card-title {
+            color: var(--title-color);
+            font-size: 20px;
+            font-weight: bold;
+        }
+        .online-dot {
+            width: 10px;
+            height: 10px;
+            background: var(--online-color);
+            border-radius: 50%;
+            margin-left: 8px;
+            display: inline-block;
+        }
+        .node-tag {
+            background: var(--title-color);
+            color: #000;
+            font-size: 14px;
+            font-weight: bold;
+            padding: 3px 8px;
+            border-radius: 3px;
+        }
+        .server-info {
+            font-size: 16px;
+            color: #ddd;
+            margin-bottom: 10px;
+        }
+        .progress-item {
+            margin-bottom: 12px;
+        }
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 16px;
+            margin-bottom: 5px;
+            color: var(--title-color);
+        }
+        .progress-bar {
+            height: 10px;
+            background: #333;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .progress-fill-cpu {
+            height: 100%;
+            background: var(--cpu-color);
+            width: 24%;
+        }
+        .progress-fill-mem {
+            height: 100%;
+            background: var(--cpu-color);
+            width: 47%;
+        }
+        .progress-fill-disk {
+            height: 100%;
+            background: var(--disk-color);
+            width: 62%;
+        }
+        .progress-fill-load {
+            height: 100%;
+            background: var(--cpu-color);
+            width: 31%;
+        }
+        .progress-fill-band {
+            height: 100%;
+            background: var(--band-color);
+            width: 30%;
+        }
+        /* 浅色模式 */
+        body.light-mode {
+            --bg-color: #f5f5f5;
+            --card-bg: #fff;
+            --text-color: #333;
+            --title-color: #0066cc;
+            --slogan-color: #cc0000;
+            --num-color: #cc9900;
+            --border-color: #0066cc;
+            --progress-bg: #e0e0e0;
+            --cpu-color: #009944;
+            --disk-color: #9900cc;
+            --band-color: #cc8800;
+            --online-color: #009900;
+        }
+    </style>
+</head>
+<body>
+    <!-- 攻击警告弹窗 -->
+    <div class="alert-overlay" id="attackAlert">
+        <div class="alert-box">
+            <div class="alert-title">⚠️ 服务器遭受攻击警告</div>
+            <div class="alert-desc">检测到 218.156.32.89 发起的 DDoS 攻击！</div>
+            <div class="info-card">
+                <div class="info-item">攻击目标：敌圣独家服务器（192.168.1.100）</div>
+                <div class="info-item">攻击强度：9.6 Gbps</div>
+                <div class="info-item">攻击持续时间：1 秒</div>
+                <div class="info-item" id="alertLoad">当前服务器负载：94%</div>
+            </div>
+            <div class="warn-text">请立即采取防御措施，避免服务中断！</div>
+            <div class="btn-group">
+                <button class="btn-defend" id="defendBtn">启动防御系统</button>
+                <button class="btn-ignore" id="ignoreBtn">暂时忽略</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 服务器监控页面 -->
+    <div class="title">敌圣独家服务器</div>
+    <div class="slogan">稳定运行 · 高速响应 · 24小时售后 · 全方位防护</div>
+    <button class="mode-toggle" id="modeToggle">切换浅色模式</button>
+    <div class="time" id="currentTime">2025-11-13 12:34:53</div>
+
+    <div class="uptime-title">已稳定运行：</div>
+    <div class="uptime">
+        <div class="uptime-box">
+            <div class="uptime-num" id="uptimeYear">3</div>
+            <div class="uptime-unit">年</div>
+        </div>
+        <div class="uptime-box">
+            <div class="uptime-num" id="uptimeDay">94</div>
+            <div class="uptime-unit">天</div>
+        </div>
+        <div class="uptime-box">
+            <div class="uptime-num" id="uptimeMinute">24</div>
+            <div class="uptime-unit">分</div>
+        </div>
+        <div class="uptime-box">
+            <div class="uptime-num" id="uptimeSecond">23</div>
+            <div class="uptime-unit">秒</div>
+        </div>
+    </div>
+
+    <div class="server-card">
+        <div class="card-header">
+            <div>
+                <span class="card-title">主服务器</span>
+                <span class="online-dot"></span>
+            </div>
+            <div class="node-tag">全能型主节点</div>
+        </div>
+        <div class="server-info">IP地址：192.168.1.100 | 端口：8080</div>
+        <div class="server-info">地理位置：多地域智能调度节点</div>
+        
+        <div class="progress-item">
+            <div class="progress-label">
+                <span>CPU占用</span>
+                <span id="cpuValue">24%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill-cpu" id="cpuBar"></div>
+            </div>
+        </div>
+        <div class="progress-item">
+            <div class="progress-label">
+                <span>内存占用</span>
+                <span id="memValue">47%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill-mem" id="memBar"></div>
+            </div>
+        </div>
+        <div class="progress-item">
+            <div class="progress-label">
+                <span>磁盘占用</span>
+                <span id="diskValue">62%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill-disk" id="diskBar"></div>
+            </div>
+        </div>
+        <div class="progress-item">
+            <div class="progress-label">
+                <span>负载状态</span>
+                <span id="loadValue">31%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill-load" id="loadBar"></div>
+            </div>
+        </div>
+        <div class="progress-item">
+            <div class="progress-label">
+                <span>带宽占用</span>
+                <span id="bandValue">3.0 Mbps</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill-band" id="bandBar"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 初始数据
+        let uptime = { year: 3, day: 94, minute: 24, second: 23 };
+        let resourceData = { cpu: 24, mem: 47, disk: 62, load: 31, band: 3.0 };
+        const alertOverlay = document.getElementById('attackAlert');
+
+        // 模式切换
+        const modeToggle = document.getElementById('modeToggle');
+        modeToggle.addEventListener('click', () => {
+            document.body.classList.toggle('light-mode');
+            modeToggle.textContent = document.body.classList.contains('light-mode') ? '切换深色模式' : '切换浅色模式';
+        });
+
+        // 更新当前时间
+        function updateCurrentTime() {
+            const now = new Date();
+            const fmt = n => String(n).padStart(2, '0');
+            document.getElementById('currentTime').textContent = `${now.getFullYear()}-${fmt(now.getMonth()+1)}-${fmt(now.getDate())} ${fmt(now.getHours())}:${fmt(now.getMinutes())}:${fmt(now.getSeconds())}`;
+        }
+
+        // 更新运行时间
+        function updateUptime() {
+            uptime.second++;
+            if (uptime.second >= 60) {
+                uptime.second = 0; uptime.minute++;
+                if (uptime.minute >= 1440) {
+                    uptime.minute = 0; uptime.day++;
+                    if (uptime.day >= 365) { uptime.day = 0; uptime.year++; }
+                }
+            }
+            Object.keys(uptime).forEach(k => document.getElementById(`uptime${k.charAt(0).toUpperCase()+k.slice(1)}`).textContent = uptime[k]);
+        }
+
+        // 资源数据波动
+        function fluctuateResourceData() {
+            resourceData.cpu = Math.max(15, Math.min(30, resourceData.cpu + (Math.random()>0.5?1:-1)*Math.floor(Math.random()*2)));
+            resourceData.mem = Math.max(40, Math.min(50, resourceData.mem + (Math.random()>0.5?1:-1)*Math.floor(Math.random()*1)));
+            resourceData.load = Math.max(25, Math.min(35, resourceData.load + (Math.random()>0.5?1:-1)*Math.floor(Math.random()*2)));
+            resourceData.band = Math.max(2.0, Math.min(4.0, (resourceData.band + (Math.random()>0.5?0.1:-0.1)).toFixed(1)));
+            
+            updateResourceDOM();
+        }
+
+        // 更新资源DOM
+        function updateResourceDOM() {
+            document.getElementById('cpuValue').textContent = `${resourceData.cpu}%`;
+            document.getElementById('cpuBar').style.width = `${resourceData.cpu}%`;
+            document.getElementById('memValue').textContent = `${resourceData.mem}%`;
+            document.getElementById('memBar').style.width = `${resourceData.mem}%`;
+            document.getElementById('loadValue').textContent = `${resourceData.load}%`;
+            document.getElementById('loadBar').style.width = `${resourceData.load}%`;
+            document.getElementById('bandValue').textContent = `${resourceData.band} Mbps`;
+            document.getElementById('bandBar').style.width = `${(resourceData.band/4)*100}%`;
+        }
+
+        // 模拟攻击函数
+        function simulateAttack() {
+            // 修改资源数据为攻击状态
+            resourceData.load = 94;
+            resourceData.band = 15.8;
+            updateResourceDOM();
+            // 显示攻击弹窗
+            document.getElementById('alertLoad').textContent = `当前服务器负载：${resourceData.load}%`;
+            alertOverlay.style.display = 'flex';
+        }
+
+        // 防御系统函数
+        function startDefend() {
+            // 恢复资源数据
+            resourceData.load = 31;
+            resourceData.band = 3.0;
+            updateResourceDOM();
+            // 隐藏弹窗
+            alertOverlay.style.display = 'none';
+        }
+
+        // 绑定按钮事件
+        document.getElementById('defendBtn').addEventListener('click', startDefend);
+        document.getElementById('ignoreBtn').addEventListener('click', () => {
+            alertOverlay.style.display = 'none';
+        });
+
+        // 定时任务（5秒后自动触发攻击）
+        setTimeout(simulateAttack, 5000);
+
+        // 初始化定时更新
+        updateCurrentTime();
+        setInterval(updateCurrentTime, 1000);
+        setInterval(updateUptime, 1000);
+        setInterval(fluctuateResourceData, 2000);
+    </script>
+</body>
+</html>
