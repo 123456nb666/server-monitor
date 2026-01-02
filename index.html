@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>星际端口监控中心 - 全球服务器节点实时状态</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --primary: #0a0e17;
+            --secondary: #121828;
+            --accent: #00e5ff;
+            --accent-glow: rgba(0, 229, 255, 0.7);
+            --warning: #ff3d71;
+            --warning-glow: rgba(255, 61, 113, 0.7);
+            --safe: #00d68f;
+            --safe-glow: rgba(0, 214, 143, 0.7);
+            --text: #e0e0ff;
+            --text-dim: #a0a0c0;
+            --border: #1a2a42;
+        }
+        
+        body {
+            font-family: 'Share Tech Mono', monospace;
+            background-color: var(--primary);
+            color: var(--text);
+            overflow-x: hidden;
+            min-height: 100vh;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(2, 18, 39, 0.8) 0%, transparent 20%),
+                radial-gradient(circle at 90% 80%, rgba(10, 25, 47, 0.6) 0%, transparent 20%),
+                linear-gradient(to bottom, rgba(0, 20, 40, 0.2) 0%, rgba(0, 5, 15, 0.8) 100%);
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            max-width: 100%;
+            padding: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* 跑马灯边框效果 */
+        .border-effect {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+        
+        .border-top, .border-bottom {
+            position: absolute;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            animation: moveBorder 3s linear infinite;
+        }
+        
+        .border-top {
+            top: 0;
+        }
+        
+        .border-bottom {
+            bottom: 0;
+        }
+        
+        .border-left, .border-right {
+            position: absolute;
+            width: 3px;
+            height: 100%;
+            background: linear-gradient(0deg, transparent, var(--accent), transparent);
+            animation: moveBorderVertical 3s linear infinite;
+        }
+        
+        .border-left {
+            left: 0;
+        }
+        
+        .border-right {
+            right: 0;
+        }
+        
+        @keyframes moveBorder {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        
+        @keyframes moveBorderVertical {
+            0% { background-position: 0 -200%; }
+            100% { background-position: 0 200%; }
+        }
+        
+        .grid-lines {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(to right, rgba(26, 42, 66, 0.2) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(26, 42, 66, 0.2) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: 0;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 25px;
+            position: relative;
+            z-index: 2;
+            background-color: rgba(10, 14, 23, 0.8);
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(0, 20, 40, 0.5);
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .logo-icon {
+            color: var(--accent);
+            font-size: 2.5rem;
+            filter: drop-shadow(0 0 8px var(--accent-glow));
+        }
+        
+        .logo-text h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 900;
+            font-size: 2.2rem;
+            background: linear-gradient(to right, var(--accent), #00b8ff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            letter-spacing: 1.5px;
+            text-shadow: 0 0 15px rgba(0, 229, 255, 0.3);
+        }
+        
+        .logo-text p {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            letter-spacing: 2px;
+        }
+        
+        .mode-selector {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .mode-btn {
+            padding: 10px 20px;
+            border: 1px solid var(--border);
+            background-color: rgba(18, 24, 40, 0.7);
+            color: var(--text);
+            font-family: 'Share Tech Mono', monospace;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.9rem;
+        }
+        
+        .mode-btn.active {
+            border-color: var(--accent);
+            background-color: rgba(0, 229, 255, 0.1);
+            box-shadow: 0 0 12px var(--accent-glow);
+        }
+        
+        .mode-btn.warning {
+            border-color: var(--warning);
+            background-color: rgba(255, 61, 113, 0.1);
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            border-radius: 4px;
+            background-color: rgba(18, 24, 40, 0.7);
+            border: 1px solid var(--border);
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: var(--safe);
+            box-shadow: 0 0 10px var(--safe-glow);
+            animation: pulse 2s infinite;
+        }
+        
+        .status-dot.warning {
+            background-color: var(--warning);
+            box-shadow: 0 0 10px var(--warning-glow);
+            animation: pulse-warning 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        @keyframes pulse-warning {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        .main-content {
+            display: flex;
+            flex-direction: row;
+            gap: 25px;
+            flex: 1;
+            position: relative;
+            z-index: 2;
+        }
+        
+        .server-monitor {
+            flex: 2;
+            background-color: rgba(10, 14, 23, 0.7);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 0 25px rgba(0, 20, 40, 0.4);
+        }
+        
+        .monitor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .monitor-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            color: var(--accent);
+        }
+        
+        .sync-time {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+        }
+        
+        .ports-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .ports-table thead {
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .ports-table th {
+            padding: 15px 10px;
+            text-align: left;
+            color: var(--accent);
+            font-weight: 500;
+            font-size: 1rem;
+            letter-spacing: 1px;
+        }
+        
+        .ports-table td {
+            padding: 15px 10px;
+            border-bottom: 1px solid rgba(26, 42, 66, 0.5);
+        }
+        
+        .port-status {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+        
+        .status-normal {
+            background-color: rgba(0, 214, 143, 0.15);
+            color: var(--safe);
+            border: 1px solid rgba(0, 214, 143, 0.3);
+        }
+        
+        .status-warning {
+            background-color: rgba(255, 61, 113, 0.15);
+            color: var(--warning);
+            border: 1px solid rgba(255, 61, 113, 0.3);
+            animation: blink 1s infinite;
+        }
+        
+        .status-scanning {
+            background-color: rgba(255, 184, 0, 0.15);
+            color: #ffb800;
+            border: 1px solid rgba(255, 184, 0, 0.3);
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .attack-console {
+            flex: 1;
+            background-color: rgba(10, 14, 23, 0.7);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 0 25px rgba(0, 20, 40, 0.4);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .console-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .console-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            color: var(--accent);
+        }
+        
+        .console-body {
+            flex: 1;
+            background-color: rgba(5, 10, 20, 0.8);
+            border-radius: 4px;
+            padding: 15px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.9rem;
+            overflow-y: auto;
+            max-height: 400px;
+            border: 1px solid rgba(26, 42, 66, 0.7);
+        }
+        
+        .console-output {
+            margin-bottom: 15px;
+        }
+        
+        .console-line {
+            margin-bottom: 5px;
+            line-height: 1.4;
+        }
+        
+        .console-line.system {
+            color: #00d68f;
+        }
+        
+        .console-line.attack {
+            color: #ff3d71;
+        }
+        
+        .console-line.info {
+            color: #00b8ff;
+        }
+        
+        .console-line.warning {
+            color: #ffb800;
+        }
+        
+        .console-input {
+            display: flex;
+            margin-top: 15px;
+        }
+        
+        .console-prompt {
+            color: #00d68f;
+            padding: 10px 5px 10px 0;
+        }
+        
+        #commandInput {
+            flex: 1;
+            background-color: transparent;
+            border: none;
+            color: var(--text);
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.9rem;
+            padding: 10px 5px;
+            outline: none;
+        }
+        
+        .attack-controls {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .attack-btn {
+            padding: 12px 10px;
+            background-color: rgba(18, 24, 40, 0.8);
+            border: 1px solid var(--border);
+            color: var(--text);
+            font-family: 'Share Tech Mono', monospace;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: left;
+            font-size: 0.85rem;
+        }
+        
+        .attack-btn:hover {
+            border-color: var(--warning);
+            background-color: rgba(255, 61, 113, 0.1);
+        }
+        
+        .attack-btn:active {
+            transform: scale(0.98);
+        }
+        
+        .attack-btn.active-attack {
+            border-color: var(--warning);
+            background-color: rgba(255, 61, 113, 0.2);
+            color: var(--warning);
+            box-shadow: 0 0 10px rgba(255, 61, 113, 0.3);
+        }
+        
+        .global-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 25px;
+        }
+        
+        .stat-card {
+            background-color: rgba(10, 14, 23, 0.7);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+        
+        .stat-icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            color: var(--accent);
+        }
+        
+        .stat-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.8rem;
+            color: var(--text);
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+        }
+        
+        .footer {
+            margin-top: 25px;
+            padding: 20px;
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            border-top: 1px solid var(--border);
+            position: relative;
+            z-index: 2;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 1200px) {
+            .main-content {
+                flex-direction: column;
+            }
+            
+            .global-stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 20px;
+            }
+            
+            .mode-selector {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .attack-controls {
+                grid-template-columns: 1fr;
+            }
+            
+            .global-stats {
+                grid-template-columns: 1fr;
+            }
+            
+            .ports-table {
+                display: block;
+                overflow-x: auto;
+            }
+        }
+        
+        /* 攻击效果 */
+        .attack-effect {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 3;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+        
+        .attack-active .border-top,
+        .attack-active .border-bottom {
+            background: linear-gradient(90deg, transparent, var(--warning), transparent);
+            animation: moveBorder 1.5s linear infinite;
+        }
+        
+        .attack-active .border-left,
+        .attack-active .border-right {
+            background: linear-gradient(0deg, transparent, var(--warning), transparent);
+            animation: moveBorderVertical 1.5s linear infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="border-effect">
+        <div class="border-top"></div>
+        <div class="border-bottom"></div>
+        <div class="border-left"></div>
+        <div class="border-right"></div>
+    </div>
+    
+    <div class="grid-lines"></div>
+    
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <i class="fas fa-satellite-dish"></i>
+                </div>
+                <div class="logo-text">
+                    <h1>星际端口监控中心</h1>
+                    <p>GLOBAL SERVER PORT MONITORING CENTER</p>
+                </div>
+            </div>
+            
+            <div class="mode-selector">
+                <button class="mode-btn active" id="normalMode">正常模式</button>
+                <button class="mode-btn" id="defenseMode">防御模式</button>
+                <button class="mode-btn warning" id="attackMode">受攻击模式</button>
+            </div>
+            
+            <div class="status-indicator">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">系统正常</span>
+            </div>
+        </header>
+        
+        <div class="main-content">
+            <section class="server-monitor">
+                <div class="monitor-header">
+                    <h2 class="monitor-title">全球节点端口监控</h2>
+                    <div class="sync-time">最后同步时间: <span id="lastSync">2026/01/02 16:49:34</span></div>
+                </div>
+                
+                <table class="ports-table">
+                    <thead>
+                        <tr>
+                            <th>端口号</th>
+                            <th>服务名称</th>
+                            <th>服务器节点</th>
+                            <th>运行状态</th>
+                            <th>备注</th>
+                        </tr>
+                    </thead>
+                    <tbody id="portsTableBody">
+                        <!-- 端口数据将通过JS动态生成 -->
+                    </tbody>
+                </table>
+                
+                <div class="global-stats">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-server"></i>
+                        </div>
+                        <div class="stat-value" id="totalServers">5</div>
+                        <div class="stat-label">在线服务器节点</div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                        <div class="stat-value" id="protectedPorts">5</div>
+                        <div class="stat-label">受保护端口</div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="stat-value" id="attacksBlocked">0</div>
+                        <div class="stat-label">今日拦截攻击</div>
+                    </div>
+                </div>
+            </section>
+            
+            <section class="attack-console">
+                <div class="console-header">
+                    <h2 class="console-title">服务器模拟攻击测试工具</h2>
+                    <div class="status-indicator">
+                        <div class="status-dot" id="attackStatusDot"></div>
+                        <span id="attackStatusText">攻击监控就绪</span>
+                    </div>
+                </div>
+                
+                <div class="console-body">
+                    <div class="console-output" id="consoleOutput">
+                        <div class="console-line system">[系统] 攻击监控系统已启动</div>
+                        <div class="console-line system">[系统] 正在监听端口活动...</div>
+                        <div class="console-line info">[信息] 最后检测时间: 2026/01/02 16:49:34</div>
+                        <div class="console-line info">[信息] 所有端口状态正常</div>
+                    </div>
+                </div>
+                
+                <div class="console-input">
+                    <div class="console-prompt">root@attack-tool:~#</div>
+                    <input type="text" id="commandInput" placeholder="输入攻击指令 (输入 help 查看命令列表)" autocomplete="off">
+                </div>
+                
+                <div class="attack-controls">
+                    <button class="attack-btn" data-attack="nmap">1. 端口探测（nmap）</button>
+                    <button class="attack-btn" data-attack="http">2. 高频HTTP请求（端口80）</button>
+                    <button class="attack-btn" data-attack="tcp">3. TCP循环连接（指定端口）</button>
+                    <button class="attack-btn" data-attack="ddos">4. DDOS并发攻击（多端口）</button>
+                    <button class="attack-btn" data-attack="scan">5. 端口扫描攻击（1-100端口）</button>
+                    <button class="attack-btn" data-attack="mixed">6. 混合攻击（并发+扫描）</button>
+                    <button class="attack-btn" data-attack="stop">7. 停止所有进程</button>
+                    <button class="attack-btn" data-attack="exit">8. 退出</button>
+                </div>
+            </section>
+        </div>
+        
+        <footer class="footer">
+            <p>© 2026 星际端口监控中心 | 全球节点实时监控系统 v3.2.1 | 安全等级: <span id="securityLevel">最高级</span></p>
+            <p>此系统为模拟演示，实际部署需要完整后端支持</p>
+        </footer>
+    </div>
+    
+    <div class="attack-effect" id="attackEffect"></div>
+    
+    <script>
+        // 全局状态
+        const state = {
+            currentMode: 'normal', // normal, defense, attack
+            isUnderAttack: false,
+            attackInProgress: false,
+            ports: [
+                { port: 80, service: 'HTTP', node: '节点-A(北美)', status: 'normal', note: 'Web服务', lastChecked: Date.now() },
+                { port: 443, service: 'HTTPS', node: '节点-B(欧洲)', status: 'normal', note: '加密传输通道', lastChecked: Date.now() },
+                { port: 22, service: 'SSH', node: '节点-C(亚太)', status: 'normal', note: '远程管理接口', lastChecked: Date.now() },
+                { port: 3306, service: 'MySQL', node: '节点-D(南美)', status: 'normal', note: '数据库服务', lastChecked: Date.now() },
+                { port: 6379, service: 'Redis', node: '节点-E(非洲)', status: 'normal', note: '缓存服务', lastChecked: Date.now() }
+            ],
+            attacksBlocked: 0,
+            activeAttack: null,
+            attackInterval: null
+        };
+        
+        // DOM 元素
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const attackStatusDot = document.getElementById('attackStatusDot');
+        const attackStatusText = document.getElementById('attackStatusText');
+        const portsTableBody = document.getElementById('portsTableBody');
+        const consoleOutput = document.getElementById('consoleOutput');
+        const commandInput = document.getElementById('commandInput');
+        const lastSync = document.getElementById('lastSync');
+        const totalServers = document.getElementById('totalServers');
+        const protectedPorts = document.getElementById('protectedPorts');
+        const attacksBlocked = document.getElementById('attacksBlocked');
+        const attackEffect = document.getElementById('attackEffect');
+        const securityLevel = document.getElementById('securityLevel');
+        
+        // 模式按钮
+        const normalModeBtn = document.getElementById('normalMode');
+        const defenseModeBtn = document.getElementById('defenseMode');
+        const attackModeBtn = document.getElementById('attackMode');
+        
+        // 攻击按钮
+        const attackBtns = document.querySelectorAll('.attack-btn');
+        
+        // 初始化
+        function init() {
+            renderPortsTable();
+            updateStats();
+            setupEventListeners();
+            startSimulation();
+            updateSyncTime();
+            
+            // 模拟初始连接状态
+            setTimeout(() => {
+                addConsoleMessage('[系统] 成功连接到所有全球服务器节点', 'system');
+                addConsoleMessage('[信息] 系统运行在正常模式，所有端口状态正常', 'info');
+            }, 1000);
+        }
+        
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 模式切换
+            normalModeBtn.addEventListener('click', () => switchMode('normal'));
+            defenseModeBtn.addEventListener('click', () => switchMode('defense'));
+            attackModeBtn.addEventListener('click', () => switchMode('attack'));
+            
+            // 攻击按钮
+            attackBtns.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const attackType = this.getAttribute('data-attack');
+                    executeAttack(attackType);
+                });
+            });
+            
+            // 命令行输入
+            commandInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    const command = this.value.trim();
+                    if (command) {
+                        processCommand(command);
+                        this.value = '';
+                    }
+                }
+            });
+            
+            // 模拟来自Termux的攻击指令（通过URL参数）
+            const urlParams = new URLSearchParams(window.location.search);
+            const simulatedAttack = urlParams.get('attack');
+            if (simulatedAttack) {
+                setTimeout(() => {
+                    executeAttack(simulatedAttack);
+                    addConsoleMessage(`[系统] 检测到外部攻击指令: ${simulatedAttack}`, 'warning');
+                }, 2000);
+            }
+        }
+        
+        // 渲染端口表格
+        function renderPortsTable() {
+            portsTableBody.innerHTML = '';
+            
+            state.ports.forEach(port => {
+                const row = document.createElement('tr');
+                
+                // 根据状态确定CSS类
+                let statusClass = 'status-normal';
+                let statusText = '正常';
+                
+                if (port.status === 'warning') {
+                    statusClass = 'status-warning';
+                    statusText = '异常';
+                } else if (port.status === 'scanning') {
+                    statusClass = 'status-scanning';
+                    statusText = '检测中';
+                }
+                
+                row.innerHTML = `
+                    <td>${port.port}</td>
+                    <td>${port.service}</td>
+                    <td>${port.node}</td>
+                    <td><span class="port-status ${statusClass}">${statusText}</span></td>
+                    <td>${port.note}</td>
+                `;
+                
+                portsTableBody.appendChild(row);
+            });
+        }
+        
+        // 更新统计信息
+        function updateStats() {
+            totalServers.textContent = state.ports.length;
+            
+            // 计算受保护端口（状态正常的端口）
+            const protectedCount = state.ports.filter(p => p.status === 'normal').length;
+            protectedPorts.textContent = protectedCount;
+            
+            attacksBlocked.textContent = state.attacksBlocked;
+            
+            // 更新安全等级
+            if (state.isUnderAttack) {
+                securityLevel.textContent = '紧急';
+                securityLevel.style.color = 'var(--warning)';
+            } else if (state.currentMode === 'defense') {
+                securityLevel.textContent = '高级';
+                securityLevel.style.color = 'var(--accent)';
+            } else {
+                securityLevel.textContent = '最高级';
+                securityLevel.style.color = 'var(--safe)';
+            }
+        }
+        
+        // 切换模式
+        function switchMode(mode) {
+            state.currentMode = mode;
+            
+            // 更新按钮状态
+            normalModeBtn.classList.remove('active');
+            defenseModeBtn.classList.remove('active');
+            attackModeBtn.classList.remove('active');
+            
+            if (mode === 'normal') {
+                normalModeBtn.classList.add('active');
+                statusDot.className = 'status-dot';
+                statusText.textContent = '系统正常';
+                document.body.classList.remove('attack-active');
+                addConsoleMessage('[系统] 切换到正常模式', 'system');
+            } else if (mode === 'defense') {
+                defenseModeBtn.classList.add('active');
+                statusDot.className = 'status-dot';
+                statusText.textContent = '防御模式激活';
+                document.body.classList.remove('attack-active');
+                addConsoleMessage('[系统] 切换到防御模式，增强端口保护', 'system');
+            } else if (mode === 'attack') {
+                attackModeBtn.classList.add('active', 'warning');
+                statusDot.className = 'status-dot warning';
+                statusText.textContent = '系统受到攻击';
+                document.body.classList.add('attack-active');
+                addConsoleMessage('[警告] 系统切换到受攻击模式，启动紧急响应', 'warning');
+            }
+            
+            // 如果切换到攻击模式，自动模拟攻击
+            if (mode === 'attack' && !state.isUnderAttack) {
+                simulateRandomAttack();
+            }
+        }
+        
+        // 执行攻击
+        function executeAttack(attackType) {
+            if (state.attackInProgress && attackType !== 'stop' && attackType !== 'exit') {
+                addConsoleMessage('[错误] 已有攻击进行中，请先停止当前攻击', 'warning');
+                return;
+            }
+            
+            // 清除之前的攻击状态
+            clearAttack();
+            
+            // 激活攻击按钮
+            attackBtns.forEach(btn => {
+                btn.classList.remove('active-attack');
+                if (btn.getAttribute('data-attack') === attackType) {
+                    btn.classList.add('active-attack');
+                }
+            });
+            
+            switch(attackType) {
+                case 'nmap':
+                    startPortProbe();
+                    break;
+                case 'http':
+                    startHTTPFlood();
+                    break;
+                case 'tcp':
+                    startTCPLoop();
+                    break;
+                case 'ddos':
+                    startDDoSAttack();
+                    break;
+                case 'scan':
+                    startPortScan();
+                    break;
+                case 'mixed':
+                    startMixedAttack();
+                    break;
+                case 'stop':
+                    stopAllAttacks();
+                    break;
+                case 'exit':
+                    exit
